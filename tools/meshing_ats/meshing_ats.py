@@ -1,5 +1,5 @@
 """
-Extrudes a VTK 2D mesh to generate an ExodusII 3D mesh.
+Extrudes a 2D mesh to generate an ExodusII 3D mesh.
 
 Works with and assumes all polyhedra cells (and polygon faces).
 
@@ -33,13 +33,19 @@ conda install h5py
 conda install netCDF4
 
 ```
-SEACAS_BUILD_DIR=$ATS_HOME/seacas/build-dev
-SEACAS_INSTALL_DIR=$ATS_HOME/seacas/install-dev
-SEACAS_SRC_DIR=$ATS_HOME/seacas/repos/seacas
+SEACAS_BUILD_DIR=/Users/uec/codes/seacas/build-dev
+SEACAS_INSTALL_DIR=/Users/uec/codes/seacas/install-dev
+SEACAS_SRC_DIR=/Users/uec/codes/seacas/repos/dev
+
+ANACONDA_DIR=/Users/uec/codes/anaconda
 
 CC=`which mpicc`
 CXX=`which mpicxx`
 FC=`which mpif90`
+
+mkdir -p $SEACAS_BUILD_DIR
+mkdir -p $SEACAS_INSTALL_DIR
+cd $SEACAS_BUILD_DIR
 
 cmake  \
     -D SEACASProj_ENABLE_SEACASExodus:BOOL=ON \
@@ -56,10 +62,13 @@ cmake  \
     -D TPL_ENABLE_MPI=ON \
     -D TPL_ENABLE_CGNS:BOOL=OFF \
     \
-    -D NetCDF_DIR:PATH=${ANACONDA_DIR} \
+    -D Netcdf_LIBRARY_DIRS:PATH=${ANACONDA_DIR}/lib \
+    -D Netcdf_INCLUDE_DIRS:PATH=${ANACONDA_DIR}/include \
     -D HDF5_ROOT:PATH=${ANACONDA_DIR} \
     -D HDF5_NO_SYSTEM_PATHS=ON \
-    ${SEACAS_SRC_DIR}
+${SEACAS_SRC_DIR}
+
+
 ```
 
 Excecute the configure script from your SEACAS_BUILD_DIR, then
@@ -480,6 +489,8 @@ class Mesh3D(object):
                             : layers) or a list of number of cells in the layer
         mat_ids             : either a single integer (one mat_id for all layers)
                             : or a list of integers (mat_id for each layer)
+                            : or a 2D numpy array of integers (mat_id for each layer and
+                              each column: [layer_id, surface_cell_id])
 
         types:
           - 'constant'      : (data=float thickness) uniform thickness
@@ -540,6 +551,16 @@ class Mesh3D(object):
         ncells_total = ncells_tall * mesh2D.num_cells()
         nfaces_total = (ncells_tall+1) * mesh2D.num_cells() + ncells_tall * mesh2D.num_edges()
         nnodes_total = (ncells_tall+1) * mesh2D.num_nodes()
+
+        np_mat_ids = np.array(mat_ids, dtype=int)
+        if np_mat_ids.size == np.size(np_mat_ids, 0):
+            if np_mat_ids.size == 1:
+                np_mat_ids = np.full((len(ncells_per_layer), mesh2D.num_cells()), mat_ids[0], dtype=int)
+            else:
+                np_mat_ids = np.empty((len(ncells_per_layer), mesh2D.num_cells()), dtype=int)
+                for ilay in range(len(ncells_per_layer)):
+                    np_mat_ids[ilay, :] = np.full(mesh2D.num_cells(), mat_ids[ilay], dtype=int)
+
 
         def col_to_id(column, z_cell):
             return z_cell + column * ncells_tall
@@ -661,9 +682,10 @@ class Mesh3D(object):
         material_ids = np.zeros((len(cells),),'i')
         for col in range(mesh2D.num_cells()):
             z_cell = 0
-            for ncells, m_id in zip(ncells_per_layer, mat_ids):
+            for ilay in range(len(ncells_per_layer)):
+                ncells = ncells_per_layer[ilay]
                 for i in range(z_cell, z_cell+ncells):
-                    material_ids[col_to_id(col, i)] = m_id
+                    material_ids[col_to_id(col, i)] = np_mat_ids[ilay, col]
                 z_cell = z_cell + ncells
 
         # make the side sets

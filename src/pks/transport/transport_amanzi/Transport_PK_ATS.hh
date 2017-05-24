@@ -91,7 +91,8 @@ typedef double AnalyticFunction(const AmanziGeometry::Point&, const double);
                           const Teuchos::RCP<State>& S_inter,
                           const Teuchos::RCP<State>& S_next);
 
-  virtual std::string name() { return name_; }
+  virtual std::string name() { return "transport_ats"; }
+  Key get_domain_name() {return domain_name_;}
 
   // main transport members
   // -- calculation of a stable time step needs saturations and darcy flux
@@ -203,6 +204,8 @@ typedef double AnalyticFunction(const AmanziGeometry::Point&, const double);
                                 Teuchos::RCP<const Epetra_MultiVector> mol_den,
                                 Teuchos::RCP<Epetra_MultiVector>& vol_darcy_flux);
 
+
+
  public:
     Teuchos::RCP<Teuchos::ParameterList> tp_list_;
     Teuchos::RCP<const Teuchos::ParameterList> preconditioner_list_;
@@ -248,7 +251,7 @@ typedef double AnalyticFunction(const AmanziGeometry::Point&, const double);
   Teuchos::RCP<Epetra_MultiVector> vol_flux;
   Teuchos::RCP<Epetra_MultiVector> conserve_qty_;
   Teuchos::RCP<const Epetra_MultiVector> flux;
-    Teuchos::RCP<const Epetra_MultiVector> ws, ws_prev, phi, mol_dens;
+  Teuchos::RCP<const Epetra_MultiVector> ws_, ws_prev_, phi_, mol_dens_, mol_dens_prev_;
   
 #ifdef ALQUIMIA_ENABLED
   Teuchos::RCP<AmanziChemistry::Alquimia_PK> chem_pk_;
@@ -259,13 +262,15 @@ typedef double AnalyticFunction(const AmanziGeometry::Point&, const double);
   Teuchos::RCP<Epetra_IntVector> downwind_cell_;
 
   Teuchos::RCP<const Epetra_MultiVector> ws_start, ws_end;  // data for subcycling 
+  Teuchos::RCP<const Epetra_MultiVector> mol_dens_start, mol_dens_end;  // data for subcycling 
   Teuchos::RCP<Epetra_MultiVector> ws_subcycle_start, ws_subcycle_end;
+  Teuchos::RCP<Epetra_MultiVector> mol_dens_subcycle_start, mol_dens_subcycle_end;
 
   int current_component_;  // data for lifting
   Teuchos::RCP<Operators::ReconstructionCell> lifting_;
 
-  std::vector<Teuchos::RCP<TransportDomainFunction<WhetStone::DenseVector> > > srcs_;  // Source or sink for components
-  std::vector<Teuchos::RCP<TransportDomainFunction<WhetStone::DenseVector> > > bcs_;  // influx BC for components
+  std::vector<Teuchos::RCP<TransportDomainFunction> > srcs_;  // Source or sink for components
+  std::vector<Teuchos::RCP<TransportDomainFunction> > bcs_;  // influx BC for components
   double bc_scaling;
   Teuchos::RCP<Epetra_Vector> Kxy;  // absolute permeability in plane xy
 
@@ -304,6 +309,7 @@ typedef double AnalyticFunction(const AmanziGeometry::Point&, const double);
   int nnodes_wghost;
  
   std::vector<std::string> component_names_;  // details of components
+  std::vector<double> mol_masses_;
   int num_aqueous, num_gaseous;
 
   // io
